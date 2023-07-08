@@ -1,4 +1,7 @@
 .python-version
+.vscode
 
 archive_urls.json
 archive.log
+
+settings.json

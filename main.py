@@ -1,12 +1,12 @@
 import copy
 import json
 import os
+import requests
 import yt_dlp
-from yt_dlp.postprocessor import MetadataParserPP
 
 
 def title_contains_keyword(info, *, incomplete):
-    keywords = url["title_keywords"].split('|')
+    keywords = task["title_keywords"].split('|')
     title = info.get('title', '').lower()
     if title:
         for keyword in keywords:
@@ -15,10 +15,24 @@ def title_contains_keyword(info, *, incomplete):
 
 
 try:
-    with open("archive_urls.json", "r") as file:
-        archive_urls = json.load(file)
+    with open("settings.json", "r") as file:
+        settings = json.load(file)
 except FileNotFoundError:
-    print("Error: archive_urls.json not found.")
+    print("Error: settings.json not found.")
+    exit(1)
+
+if not settings["api_base_url"]:
+    print("Error: URL not specified in settings.json.")
+    exit(1)
+
+archive_tasks_url = f"{settings['api_base_url']}/archivetasks"
+archive_url = f"{settings['api_base_url']}/archive"
+
+try:
+    with requests.get(archive_tasks_url) as response:
+        archive_tasks = response.json()
+except requests.exceptions.RequestException:
+    print("Error: Failed to fetch archive tasks.")
     exit(1)
 
 video_ydl_opts = {
@@ -72,24 +86,24 @@ audio_ydl_opts = {
     "verbose": True
 }
 
-for url in archive_urls:
+for task in archive_tasks:
     ydl_opts = None
 
-    if url["type"] == "audio":
+    if task["type"] == 0:
         ydl_opts = copy.deepcopy(audio_ydl_opts)
-    elif url["type"] == "video":
+    elif task["type"] == 1:
         ydl_opts = copy.deepcopy(video_ydl_opts)
 
-    outtmpl = os.path.join(url["storage_path"], ydl_opts["outtmpl"]["default"])
-    if url["output_template"]:
-        outtmpl = os.path.join(url["storage_path"], url["output_template"])
+    outtmpl = os.path.join(task["storage_path"], ydl_opts["outtmpl"]["default"])
+    if task["output_template"]:
+        outtmpl = os.path.join(task["storage_path"], task["output_template"])
     ydl_opts["outtmpl"]["default"] = outtmpl
 
-    if url["cookie_file"]:
-        ydl_opts["cookiefile"] = url["cookie_file"]
+    if task["cookie_file"]:
+        ydl_opts["cookiefile"] = task["cookie_file"]
 
-    if url["title_keywords"]:
+    if task["title_keywords"]:
         ydl_opts["match_filter"] = title_contains_keyword
 
     with yt_dlp.YoutubeDL(ydl_opts) as client:
-        client.download(url["address"])
+        client.download(task["address"])
